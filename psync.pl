@@ -42,7 +42,6 @@ EOF
 {
   package ImageFile;
   use Moose;
-  use constant VIDEO_MIME => "video/mp4";
 
   has filename  => ( isa => 'Str', is  => 'rw');
   has timestamp => ( isa => 'Str', is  => 'ro');
@@ -50,7 +49,7 @@ EOF
 
   sub digest_file {
     my $self = shift;
-    open my $fh, '<:raw', $self->filename or die "Cannot open file: $self->filename, $!\n";
+    open my $fh, '<:raw', $self->filename or die "Cannot open file: $self->{filename}, $!\n";
     $MD5->addfile($fh);
     $self->{digest} = $MD5->digest;
     $MD5->reset();
@@ -60,7 +59,7 @@ EOF
   sub get_timestamp {
     my $self = shift;
     my $metadata = $ET->ImageInfo($self->filename);
-    if ($metadata->{MIMEType} eq VIDEO_MIME) {
+    if ($metadata->{MIMEType} eq "video/mp4") {
       $self->{timestamp} = $metadata->{MediaCreateDate};
     } else {
       $self->{timestamp} = $metadata->{DateTimeOriginal};
@@ -72,7 +71,7 @@ sub main {
   my ($source_dir, $dest_dir) = parse_argv(\%PARAMS);
 
   # In order to avoid checks against VERBOSE in each for-loop iteration,
-  # $put is used. If verbosity is turned off, it does nothign, otherwise
+  # $put is used. If verbosity is turned off, it does nothing, otherwise
   # it prints the passed string
   my $put;
   if ($PARAMS{VERBOSE}) { $put = sub { print shift }; } else { $put = sub { return 0 }; }
@@ -87,20 +86,16 @@ sub main {
     # Check if file already exist at destination
     # If it does exist, and the md5sum is identical
     # to the current file, continue to next file.
-    # Otherwise, rename the target file until the
-    # a new name is reached, or a file with identical
-    # md5sum is found.
+    # Otherwise, rename the target file until a new name
+    # is reached, or a file with identical md5sum is found.
     my $file_already_exist = 0;
-    my $i = 0;
-    while (-f $dpath) {
+    for (my $i = 0; -f $dpath && $file_already_exist == 0; $i++) {
       if (digest_file($dpath) eq $img->digest) {
         $file_already_exist = 1;
-        last;
       } else {
         $dfile = "$dest[1].($i)$dest[2]";
         $ddir  = "$dest_dir/$dest[0]";     # Destination dir plus timestamped subdirs
         $dpath = "$ddir/$dfile";           # Destination filepath
-        $i++;
       }
     }
     my $fn = $img->filename;
@@ -168,10 +163,7 @@ sub suggest_destination {
 
 sub scan_dir {
   # Takes a directory and search for image and video files
-  # Returns an array of hashes with the fields:
-  #   filename  -> /path/to/file.jpg
-  #   timestamp -> 2020:02:22 13:37:37
-  #   digest    -> 0871dc5b614a8aba0d7a31b823f13244
+  # Returns an array of ImageFiles 
   my $dir = shift;
   my @retval;
   # Scan for jpg, png, jpeg and mp4 files
