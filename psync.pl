@@ -38,11 +38,42 @@ the timestamps of the files. Files are hashed to ensure that
 only unique files are copied.
 EOF
 
-use constant VIDEO_MIME => "video/mp4";
+
+{
+  package ImageFile;
+  use Moose;
+  use constant VIDEO_MIME => "video/mp4";
+
+  has filename  => ( isa => 'Str', is  => 'rw');
+  has timestamp => ( isa => 'Str', is  => 'ro');
+  has digest    => ( isa => 'Str', is  => 'ro');
+
+  sub digest_file {
+    my $self = shift;
+    open my $fh, '<:raw', $self->filename or die "Cannot open file: $self->filename, $!\n";
+    $MD5->addfile($fh);
+    $self->{digest} = $MD5->digest;
+    $MD5->reset();
+    close $fh;
+  }
+
+  sub get_timestamp {
+    my $self = shift;
+    my $metadata = $ET->ImageInfo($self->filename);
+    if ($metadata->{MIMEType} eq VIDEO_MIME) {
+      $self->{timestamp} = $metadata->{MediaCreateDate};
+    } else {
+      $self->{timestamp} = $metadata->{DateTimeOriginal};
+    }
+  }
+}
 
 sub main {
   my ($source_dir, $dest_dir) = parse_argv(\%PARAMS);
 
+  # In order to avoid checks against VERBOSE in each for-loop iteration,
+  # $put is used. If verbosity is turned off, it does nothign, otherwise
+  # it prints the passed string
   my $put;
   if ($PARAMS{VERBOSE}) { $put = sub { print shift }; } else { $put = sub { return 0 }; }
 
@@ -62,7 +93,7 @@ sub main {
     my $file_already_exist = 0;
     my $i = 0;
     while (-f $dpath) {
-      if (digest_file($dpath) eq $img->{digest}) {
+      if (digest_file($dpath) eq $img->digest) {
         $file_already_exist = 1;
         last;
       } else {
@@ -72,18 +103,19 @@ sub main {
         $i++;
       }
     }
+    my $fn = $img->filename;
     if ($file_already_exist) {
-      $put->("$img->{filename} already exist at: $dpath\n" );
+      $put->("$fn already exist at: $dpath\n" );
       next;
     }
 
-    $put->("cp $img->{filename} $dpath\n");
+    $put->("cp $fn $dpath\n");
     unless ($PARAMS{DRY_RUN}) {
       unless (-d $ddir) {
         $put->("mkdir $ddir");
         make_path($ddir);
       }
-      copy($img->{filename}, $dpath) or print STDERR "Could not copy $img->{filename} to $dpath\n";
+      copy($fn, $dpath) or print STDERR "Could not copy $fn to $dpath\n";
     }
   }
 }
@@ -126,9 +158,9 @@ sub parse_argv {
 sub suggest_destination {
   my $img    = shift; # Ref to element outputted from `scan_dir`
 
-  my $oldname = $img->{filename};
+  my $oldname = $img->filename;
   my ($fext)  = $oldname =~ /(\.[^.]+)$/;
-  my $ts      = parse_date($img->{timestamp});
+  my $ts      = parse_date($img->timestamp);
   my $subdir  = "$ts->{year}/$ts->{month}/$ts->{day}";
   my $newname = "$ts->{year}_$ts->{month}_$ts->{day}-$ts->{hour}.$ts->{minute}.$ts->{second}";
   return ($subdir, $newname, $fext);
@@ -148,17 +180,9 @@ sub scan_dir {
                                        '*\.[jJ][pP][eE][gG]', '*\.[mM][pP]4')
                                ->in ($dir)) {
 
-     my $metadata = $ET->ImageInfo($imf);
-     my $filetype = $metadata->{MIMEType};
-     my $digest   = digest_file($imf);
-     
-     # Assume picture unless MIMEtype is mp4
-     my $timestamp = $filetype eq VIDEO_MIME ? $metadata->{MediaCreateDate} : $metadata->{DateTimeOriginal};
-     push @retval, {
-       filename  => $imf,
-       timestamp => $timestamp,
-       digest    => $digest
-     }
+     my $image = ImageFile->new( filename => $imf);
+     $image->digest_file(); $image->get_timestamp();
+     push @retval, $image;
   }
   return \@retval;
 }
