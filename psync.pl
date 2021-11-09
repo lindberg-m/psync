@@ -119,7 +119,7 @@ sub main {
     # is reached, or a file with identical md5sum is found.
     my $file_already_exist = 0;
     for (my $i = 0; -f $dpath; $i++) {
-      if (digestFile($dpath) eq $img->digest) {
+      if (digestFile($dpath) eq $img->getDigest) {
         $file_already_exist = 1;
         last;
       } else {
@@ -141,7 +141,7 @@ sub main {
         $put->("mkdir $ddir");
         make_path($ddir);
       }
-      $cp{cmd}->($img->filenameath) or print STDERR "Could not $cp{str} $filename $dpath\n";
+      $cp{cmd}->($filename, $dpath) or print STDERR "Could not $cp{str} $filename $dpath\n";
     }
   }
   $put->("Nr of duplicate files found at source dir: " . scalar @{$duplicates} . "\n");
