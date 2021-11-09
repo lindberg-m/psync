@@ -41,30 +41,49 @@ EOF
 {
   # A class to store image and video files and acces timestamps
   # for their creation date and md5sum
+  #
   package MediaFile;
-  use Moose;
-
-  has filename  => ( isa => 'Str', is  => 'rw');
-  has timestamp => ( isa => 'Str', is  => 'ro');
-  has digest    => ( isa => 'Str', is  => 'ro');
-
-  sub digest_file {
-    my $self = shift;
-    open my $fh, '<:raw', $self->filename or die "Cannot open file: $self->{filename}, $!\n";
-    $MD5->addfile($fh);
-    $self->{digest} = $MD5->digest;
-    $MD5->reset();
-    close $fh;
+  sub new {
+    my $class = shift;
+    my $self = { _filename => shift, _timestamp => '', _digest => '' };
+    bless $self, $class;
+    return $self;
   }
 
-  sub get_timestamp {
+  sub getFilename {
     my $self = shift;
-    my $metadata = $ET->ImageInfo($self->filename);
+    return $self->{_filename};
+  }
+
+  sub getTimestamp {
+    my $self = shift;
+    return $self->{_timestamp};
+  }
+
+  sub getDigest {
+    my $self = shift;
+    return $self->{_digest};
+  }
+
+  sub digestFile {
+    my $self = shift;
+    open my $fh, '<:raw', $self->{_filename} or die "Cannot open file: $self->{_filename}, $!\n";
+    $MD5->addfile($fh);
+    $self->{_digest} = $MD5->digest;
+    $MD5->reset();
+    close $fh;
+    return $self->{_digest};
+  }
+
+  sub setTimestamp {
+    my $self = shift;
+    my $metadata = $ET->ImageInfo($self->{_filename});
     if ($metadata->{MIMEType} eq "video/mp4") {
-      $self->{timestamp} = $metadata->{MediaCreateDate};
+      $self->{_timestamp} = $metadata->{MediaCreateDate};
     } else {
-      $self->{timestamp} = $metadata->{DateTimeOriginal};
+      $self->{_timestamp} = $metadata->{DateTimeOriginal};
     }
+    return $self->{_timestamp};
   }
 }
 
@@ -100,7 +119,7 @@ sub main {
     # is reached, or a file with identical md5sum is found.
     my $file_already_exist = 0;
     for (my $i = 0; -f $dpath; $i++) {
-      if (digest_file($dpath) eq $img->digest) {
+      if (digestFile($dpath) eq $img->digest) {
         $file_already_exist = 1;
         last;
       } else {
@@ -115,7 +134,7 @@ sub main {
       next;
     }
 
-    $put->("$cp{cmd_str} $img->{filename} $dpath\n");
+    $put->(sprintf("%s %s %s\n", $cp{cmd_str}, $img->getFilename(), $dpath));
     unless ($PARAMS{DRY_RUN}) {
       unless (-d $ddir) {
         $put->("mkdir $ddir");
@@ -163,9 +182,9 @@ sub parse_argv {
 
 sub suggest_destination {
   my $img     = shift;
-  my $oldname = $img->filename;
+  my $oldname = $img->getFilename();
   my ($fext)  = $oldname =~ /(\.[^.]+)$/;
-  my $ts      = parse_date($img->timestamp);
+  my $ts      = parse_date($img->getTimestamp());
   my $subdir  = "$ts->{year}/$ts->{month}/$ts->{day}";
   my $newname = "$ts->{year}-$ts->{month}-$ts->{day}-$ts->{hour}.$ts->{minute}.$ts->{second}";
   return ($subdir, $newname, $fext);
@@ -189,14 +208,14 @@ sub scan_dir {
                                        '*\.[jJ][pP][eE][gG]', '*\.[mM][pP]4')
                                ->in ($dir)) {
 
-     my $image = MediaFile->new( filename => $imf);
-     $image->digest_file();
+     my $image = MediaFile->new($imf);
+     my $digest = $image->digestFile();
     
-     if ( $seen_md5sums->has($image->digest)) {
+     if ( $digest = $seen_md5sums->has($digest)) {
        push @duplicates, $image;
      } else {
-       $seen_md5sums->insert($image->digest);
-       $image->get_timestamp();
+       $seen_md5sums->insert($digest);
+       $image->setTimestamp();
        push @retval, $image;
      }
   }
@@ -212,7 +231,7 @@ sub parse_date {
            hour => $h, minute => $M, second => $s }
 }
 
-sub digest_file {
+sub digestFile {
   my $filename = shift;
   open my $fh, '<:raw', $filename or die "Cannot open file: $filename, $!\n";
   $MD5->addfile($fh);
