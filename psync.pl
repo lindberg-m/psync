@@ -73,18 +73,13 @@ main();
 sub main {
   my ($source_dir, $dest_dir) = parse_argv(\%PARAMS);
 
-  my %cp = (
-    cmd     => \&copy,
-    cmd_str => "cp",
-    str     => "copy"
-  );
-
+  my %cp;
   if ($PARAMS{MOVE}) {
-    $cp{cmd}     = \&move;
-    $cp{cmd_str} = "mv";
-    $cp{str}     = "move";
+    $cp{cmd} = \&move; $cp{cmd_str} = "mv"; $cp{str} = "move";
+  } else {
+    $cp{cmd} = \&copy; $cp{cmd_str} = "cp"; $cp{str} = "copy"
   }
-  
+
   # In order to avoid checks against VERBOSE in each for-loop iteration,
   # $put is used instead of `print`. If verbosity is turned off,
   # it does nothing, otherwise it prints the passed string
@@ -104,9 +99,10 @@ sub main {
     # Otherwise, rename the target file until a new name
     # is reached, or a file with identical md5sum is found.
     my $file_already_exist = 0;
-    for (my $i = 0; -f $dpath && $file_already_exist == 0; $i++) {
+    for (my $i = 0; -f $dpath; $i++) {
       if (digest_file($dpath) eq $img->digest) {
         $file_already_exist = 1;
+        last;
       } else {
         $dfile = "$dest[1]($i)$dest[2]";
         $ddir  = "$dest_dir/$dest[0]";     # Destination dir plus timestamped subdirs
@@ -151,8 +147,7 @@ sub parse_argv {
       print STDERR "Unrecognized argument: $ARGV[$i]\n";
       die $usage;
     } else {
-      $positional_args[$j] = $ARGV[$i];
-      $j++;
+      $positional_args[$j++] = $ARGV[$i];
     }
   }
 
@@ -172,7 +167,7 @@ sub suggest_destination {
   my ($fext)  = $oldname =~ /(\.[^.]+)$/;
   my $ts      = parse_date($img->timestamp);
   my $subdir  = "$ts->{year}/$ts->{month}/$ts->{day}";
-  my $newname = "$ts->{year}_$ts->{month}_$ts->{day}-$ts->{hour}.$ts->{minute}.$ts->{second}";
+  my $newname = "$ts->{year}-$ts->{month}-$ts->{day}-$ts->{hour}.$ts->{minute}.$ts->{second}";
   return ($subdir, $newname, $fext);
 }
 
