@@ -9,7 +9,6 @@ use File::Path "make_path";
 use File::Basename;
 use File::Find::Rule;
 use File::Copy;
-use Set::Scalar;
 
 # GLOBALS
 my $MD5 = Digest::MD5->new;
@@ -105,7 +104,7 @@ sub main {
   my $put;
   if ($PARAMS{VERBOSE}) { $put = sub { print shift }; } else { $put = sub { return 0 }; }
 
-  my ($img_files, $duplicates) = scan_dir($source_dir);
+  my ($img_files, $duplicate_counts) = scan_dir($source_dir);
   for my $img (@{$img_files}) {
     my @dest  = suggest_destination($img);
     my $dfile = "$dest[1]$dest[2]";    # New timestamped filename plus extension
@@ -144,7 +143,7 @@ sub main {
       $cp{cmd}->($filename, $dpath) or print STDERR "Could not $cp{str} $filename $dpath\n";
     }
   }
-  $put->("Nr of duplicate files found at source dir: " . scalar @{$duplicates} . "\n");
+  $put->("Nr of duplicate files found at source dir: $duplicate_counts\n");
 }
 
 sub parse_argv {
@@ -196,9 +195,9 @@ sub scan_dir {
   # Returns an array of ImageFiles to be copied/moved and
   # an array of duplicate files that shouldn't be moved/copied.
   my $dir = shift;
-  my $seen_md5sums = Set::Scalar->new();
+  my %seen_md5sums;
   my @retval;
-  my @duplicates;
+  my $duplicate_count = 0;
 
   # Right now, duplicate files are simply collected, whith no notion
   # of what file(s) are identical to the duplicate...
@@ -212,15 +211,15 @@ sub scan_dir {
      my $image = MediaFile->new($imf);
      my $digest = $image->digestFile();
     
-     if ( $digest = $seen_md5sums->has($digest)) {
-       push @duplicates, $image;
+     if ($seen_md5sums{$digest}) {
+       $duplicate_count++;
      } else {
-       $seen_md5sums->insert($digest);
+       $seen_md5sums{$digest} = 1;
        $image->setTimestamp();
        push @retval, $image;
      }
   }
-  return (\@retval, \@duplicates);
+  return (\@retval, $duplicate_count);
 }
 
 sub parse_date {
