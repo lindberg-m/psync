@@ -2,7 +2,7 @@
 
 Scan a directory for image files and put them at a new location, with 
 subdirectories and filenames representing the date and time
-for when the files were created.
+for when the files was created.
 
 ```
 usage:
