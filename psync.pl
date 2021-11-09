@@ -129,18 +129,19 @@ sub main {
       }
     }
 
+    my $filename = $img->getFilename();
     if ($file_already_exist) {
-      $put->("$img->{filename} already exist at: $dpath\n" );
+      $put->(sprintf("%s already exist at: %s\n", $filename, $dpath ));
       next;
     }
 
-    $put->(sprintf("%s %s %s\n", $cp{cmd_str}, $img->getFilename(), $dpath));
+    $put->(sprintf("%s %s %s\n", $cp{cmd_str}, $filename, $dpath));
     unless ($PARAMS{DRY_RUN}) {
       unless (-d $ddir) {
         $put->("mkdir $ddir");
         make_path($ddir);
       }
-      $cp{cmd}->($img->{filename}, $dpath) or print STDERR "Could not $cp{str} $img->{filename} to $dpath\n";
+      $cp{cmd}->($img->filenameath) or print STDERR "Could not $cp{str} $filename $dpath\n";
     }
   }
   $put->("Nr of duplicate files found at source dir: " . scalar @{$duplicates} . "\n");
